@@ -1,8 +1,13 @@
 # capacitor-sumup
 
-Plugin de Capacitor para el **SumUp Android Reader SDK v5**.
+Plugin de Capacitor para pagos con SumUp en Android.
 
-Proporciona login, cobros, gestión de lector de tarjetas y manejo de sesión a través de una API JS/TS sencilla. Incluye un fallback web que retorna no-ops seguros para que puedas desarrollar tu UI sin un dispositivo Android.
+Soporta 2 familias de integración:
+
+- **Reader SDK (Air / lector Bluetooth)**
+- **Tap to Pay (NFC en el teléfono Android, condicional)**
+
+Incluye fallback web seguro para desarrollo de UI en navegador.
 
 ## Características
 
@@ -14,6 +19,10 @@ Proporciona login, cobros, gestión de lector de tarjetas y manejo de sesión a 
 - **`prepareForCheckout()`** — Pre-conecta el lector para agilizar el cobro
 - **`checkout()`** — Inicia un flujo de pago en el lector de tarjetas
 - **`closeConnection()`** — Desconecta el lector de tarjetas
+- **`initTapToPay()`** — Inicializa Tap to Pay con `affiliateKey` + `apiToken`
+- **`tapToPayCheckout()`** — Inicia cobro Tap to Pay (débito/crédito/cuotas)
+- **`isTapToPayReady()`** — Indica si Tap to Pay está inicializado
+- **`teardownTapToPay()`** — Libera recursos de Tap to Pay
 
 ## Requisitos
 
@@ -21,8 +30,25 @@ Proporciona login, cobros, gestión de lector de tarjetas y manejo de sesión a 
 |---|---|
 | `@capacitor/core` | `>= 5.0.0` |
 | SumUp Merchant SDK | `5.0.3` |
-| Android `minSdk` | `26` |
+| Android `minSdk` | `30` |
 | Java | `17` |
+| Kotlin | `1.9.22` |
+
+### Requisitos Tap to Pay (opcional)
+
+Tap to Pay usa dependencia privada:
+
+- `com.sumup.tap-to-pay:utopia-sdk:1.0.4`
+- Repositorio privado de SumUp con credenciales Maven
+
+Credenciales esperadas en `.env` del proyecto host:
+
+```env
+sumupMavenUser=TU_USUARIO
+sumupMavenPassword=TU_PASSWORD
+```
+
+Si no hay credenciales válidas, el plugin **compila igual** y Tap to Pay queda no disponible en runtime (`TAP_NOT_AVAILABLE`).
 
 ## Instalación
 
@@ -34,7 +60,7 @@ npx cap sync android
 ## Uso
 
 ```typescript
-import { SumUp } from 'capacitor-sumup'
+import { SumUp } from '@chano195/capacitor-sumup'
 
 // 1. Inicializar una vez al arrancar la app
 await SumUp.setup()
@@ -125,6 +151,32 @@ Pre-conecta el lector BLE para agilizar el próximo pago.
 
 Desconecta el lector de tarjetas.
 
+### `initTapToPay(options: TapToPayInitOptions): Promise<SumUpResponse>`
+
+| Parámetro | Tipo | Requerido | Descripción |
+|---|---|---|---|
+| `affiliateKey` | `string` | ✅ | Clave de afiliado SumUp |
+| `apiToken` | `string` | ✅ | Bearer token obtenido por backend |
+
+### `tapToPayCheckout(options: TapToPayCheckoutOptions): Promise<TapToPayResult>`
+
+| Parámetro | Tipo | Requerido | Descripción |
+|---|---|---|---|
+| `amount` | `number` | ✅ | Monto (mínimo 1.00) |
+| `currency` | `string` | ❌ | ISO 4217 (`CLP` por defecto) |
+| `processCardAs` | `'CREDIT' \| 'DEBIT'` | ❌ | Tipo de proceso (Chile) |
+| `installments` | `number` | ❌ | Cuotas para crédito |
+| `description` | `string` | ❌ | Descripción del cobro |
+| `foreignTransactionId` | `string` | ❌ | ID externo único |
+
+### `isTapToPayReady(): Promise<{ ready: boolean }>`
+
+Retorna si Tap to Pay está inicializado y listo para cobrar.
+
+### `teardownTapToPay(): Promise<SumUpResponse>`
+
+Libera recursos del SDK Tap to Pay.
+
 ## Fallback Web
 
 En plataformas que no sean Android, todos los métodos retornan una respuesta segura `{ code: -1, message: 'SumUp no disponible en web' }` o lanzan excepción para `checkout()`. Esto te permite desarrollar tu UI en el navegador sin errores.
@@ -134,6 +186,18 @@ En plataformas que no sean Android, todos los métodos retornan una respuesta se
 - **Hilo principal**: Todas las llamadas al SDK se despachan automáticamente al hilo UI de Android.
 - **Basado en Activities**: `login()`, `checkout()` y `openCardReaderPage()` lanzan Activities nativas. La Promise se resuelve cuando la Activity termina.
 - **Permisos Bluetooth**: El plugin declara los permisos `BLUETOOTH`, `BLUETOOTH_ADMIN`, `BLUETOOTH_CONNECT`, `BLUETOOTH_SCAN`, `ACCESS_FINE_LOCATION` y `ACCESS_COARSE_LOCATION` en su `AndroidManifest.xml`.
+- **Tap to Pay condicional**: la implementación real se compila desde `android/src/main/taptopay/` solo cuando hay credenciales Maven válidas.
+
+## Publicación y consumo desde Git
+
+- `dist/` se mantiene versionado para evitar errores de consumo.
+- El paquete ejecuta build en `prepare` y `prepack`.
+- Antes de publicar, valida con:
+
+```bash
+npm run build
+npm pack --dry-run
+```
 
 ## Atribución
 

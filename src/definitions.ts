@@ -2,8 +2,10 @@
  * capacitor-sumup – TypeScript definitions
  *
  * Tipos compartidos entre la capa web (fallback) y el bridge nativo Android.
- * Basado en el SumUp Android Reader SDK v5 y los tipos del plugin Cordova original.
+ * Basado en el SumUp Android Reader SDK v5, Cloud API y Tap to Pay SDK.
  */
+
+import type { PluginListenerHandle } from '@capacitor/core'
 
 // ── Request types ──────────────────────────────────────────
 
@@ -33,6 +35,44 @@ export interface SumUpPaymentOptions {
   foreignTransactionId?: string
 }
 
+// ── Tap to Pay types ───────────────────────────────────────
+
+export interface TapToPayInitOptions {
+  /** Affiliate key de SumUp */
+  affiliateKey: string
+  /** Bearer token para autenticar con el backend de SumUp */
+  apiToken: string
+}
+
+export type ProcessCardAs = 'CREDIT' | 'DEBIT'
+
+export interface TapToPayCheckoutOptions {
+  /** Monto a cobrar (entero; ej: 1000 para $1.000 CLP) */
+  amount: number
+  /** Código de moneda ISO 4217 (ej: "CLP") */
+  currency: string
+  /** Cómo procesar la tarjeta: "CREDIT" o "DEBIT" (requerido para Chile) */
+  processCardAs: ProcessCardAs
+  /** Número de cuotas (solo para crédito; 0 = sin cuotas) */
+  installments?: number
+  /** Descripción del cobro */
+  description?: string
+  /** ID externo de la transacción */
+  foreignTransactionId?: string
+}
+
+export interface TapToPayEvent {
+  /** Nombre del evento: sdkReady, cardRequested, cardPresented, pinRequired, paymentStarting */
+  event: string
+  /** Mensaje descriptivo */
+  message?: string
+  [key: string]: unknown
+}
+
+export interface TapToPayReadyStatus {
+  ready: boolean
+}
+
 // ── Response types ─────────────────────────────────────────
 
 export interface SumUpResponse {
@@ -54,9 +94,9 @@ export interface SumUpPaymentResult {
   currency: string
   /** PENDING | SUCCESSFUL | CANCELLED | FAILED */
   status: string
-  /** CASH | POS | ECOM | UNKNOWN | RECURRING | BITCOIN | BALANCE */
+  /** CASH | POS | ECOM | UNKNOWN | RECURRING | BITCOIN | BALANCE | TAP_TO_PAY */
   payment_type: string
-  /** Ej: CHIP, CONTACTLESS */
+  /** Ej: CHIP, CONTACTLESS, NFC */
   entry_mode: string
   installments: number
   /** Ej: MASTERCARD, VISA */
@@ -68,6 +108,8 @@ export interface SumUpPaymentResult {
 // ── Plugin interface ───────────────────────────────────────
 
 export interface SumUpPlugin {
+  // ── SDK clásico (Air / BT) ───────────────────────────────
+
   /** Inicializa el SDK (SumUpState.init). Llamar una vez al iniciar la app. */
   setup(): Promise<SumUpResponse>
 
@@ -91,4 +133,21 @@ export interface SumUpPlugin {
 
   /** Cierra la conexión con el lector de tarjetas */
   closeConnection(): Promise<SumUpResponse>
+
+  // ── Tap to Pay (NFC en dispositivo Android) ──────────────
+
+  /** Inicializa el SDK Tap to Pay (requiere affiliateKey + apiToken del backend) */
+  initTapToPay(options: TapToPayInitOptions): Promise<SumUpResponse>
+
+  /** Inicia un cobro NFC en el propio dispositivo Android */
+  tapToPayCheckout(options: TapToPayCheckoutOptions): Promise<SumUpPaymentResult>
+
+  /** Verifica si el SDK Tap to Pay está listo */
+  isTapToPayReady(): Promise<TapToPayReadyStatus>
+
+  /** Libera recursos del SDK Tap to Pay */
+  teardownTapToPay(): Promise<SumUpResponse>
+
+  /** Escucha eventos intermedios del Tap to Pay (cardRequested, cardPresented, etc.) */
+  addListener(eventName: 'tapToPayEvent', listenerFunc: (event: TapToPayEvent) => void): Promise<PluginListenerHandle>
 }

@@ -6,6 +6,9 @@ import type {
   SumUpResponse,
   SumUpLoginStatus,
   SumUpPaymentResult,
+  TapToPayInitOptions,
+  TapToPayCheckoutOptions,
+  TapToPayReadyStatus,
 } from './definitions'
 
 const WEB_RESPONSE: SumUpResponse = { code: -1, message: 'SumUp no disponible en web' }
@@ -44,6 +47,24 @@ export class SumUpWeb extends WebPlugin implements SumUpPlugin {
   }
 
   async closeConnection(): Promise<SumUpResponse> {
+    return WEB_RESPONSE
+  }
+
+  // ── Tap to Pay (NFC) ──────────────────────────────────
+
+  async initTapToPay(_options: TapToPayInitOptions): Promise<SumUpResponse> {
+    return WEB_RESPONSE
+  }
+
+  async tapToPayCheckout(_options: TapToPayCheckoutOptions): Promise<SumUpPaymentResult> {
+    throw new Error('Tap to Pay no disponible en web')
+  }
+
+  async isTapToPayReady(): Promise<TapToPayReadyStatus> {
+    return { ready: false }
+  }
+
+  async teardownTapToPay(): Promise<SumUpResponse> {
     return WEB_RESPONSE
   }
 }

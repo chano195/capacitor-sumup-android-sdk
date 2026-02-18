@@ -2,10 +2,16 @@
   "name": "@chano195/capacitor-sumup",
   "version": "1.0.0",
   "description": "Plugin de Capacitor para el SumUp Android Reader SDK v5. Proporciona login, cobros, gestión de lector de tarjetas y manejo de sesión via API JS/TS.",
-  "main": "dist/plugin.cjs.js",
+  "main": "dist/esm/index.js",
   "module": "dist/esm/index.js",
   "types": "dist/esm/index.d.ts",
-  "unpkg": "dist/plugin.js",
+  "exports": {
+    ".": {
+      "types": "./dist/esm/index.d.ts",
+      "import": "./dist/esm/index.js",
+      "default": "./dist/esm/index.js"
+    }
+  },
   "files": [
     "android/src/main/",
     "android/build.gradle",
@@ -20,6 +26,8 @@
   "scripts": {
     "build": "tsc",
     "clean": "rimraf dist",
+    "prepare": "npm run build",
+    "prepack": "npm run build",
     "prepublishOnly": "npm run build"
   },
   "author": "chano195 <ti@devlas.cl> (https://devlas.cl)",

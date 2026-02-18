@@ -16,6 +16,7 @@ import com.sumup.merchant.reader.api.SumUpState;
 import com.sumup.merchant.reader.models.TransactionInfo;
 
 import java.math.BigDecimal;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -37,6 +38,20 @@ public class SumUpPlugin extends Plugin {
     private String loginCallbackId;
     private String checkoutCallbackId;
     private String readerCallbackId;
+
+    /* ── Tap to Pay ─────────────────────────────────────── */
+    private TapToPayBridge tapToPayManager;
+    private String tapPaymentCallbackId;
+
+    /** Verifica si el SDK Tap to Pay está disponible en el classpath */
+    private boolean isTapToPayAvailable() {
+        try {
+            Class.forName("app.devlas.plugins.sumup.TapToPayManager");
+            return true;
+        } catch (ClassNotFoundException e) {
+            return false;
+        }
+    }
 
     /* ── Helpers ────────────────────────────────────────── */
 
@@ -214,6 +229,167 @@ public class SumUpPlugin extends Plugin {
                 call.resolve(ok("Conexión cerrada"));
             } catch (Exception e) {
                 call.reject("Error al cerrar conexión: " + e.getMessage(), "CLOSE_ERROR");
+            }
+        });
+    }
+
+    /* ═══════════════════════════════════════════════════════ */
+    /* ══ TAP TO PAY (NFC en dispositivo Android)          ══ */
+    /* ═══════════════════════════════════════════════════════ */
+
+    private static final String TAP_NOT_AVAILABLE =
+        "Tap to Pay SDK no disponible. Configura las credenciales Maven en .env y recompila.";
+
+    /**
+     * Inicializa el SDK Tap to Pay.
+     * Requiere: affiliateKey, apiToken (bearer token del backend).
+     */
+    @PluginMethod
+    public void initTapToPay(PluginCall call) {
+        if (!isTapToPayAvailable()) {
+            call.reject(TAP_NOT_AVAILABLE, "TAP_NOT_AVAILABLE");
+            return;
+        }
+        String affiliateKey = call.getString("affiliateKey", "");
+        String apiToken     = call.getString("apiToken", "");
+        if (affiliateKey == null || affiliateKey.isEmpty()) {
+            call.reject("affiliateKey es requerido", "NO_AFFILIATE_KEY");
+            return;
+        }
+        if (apiToken == null || apiToken.isEmpty()) {
+            call.reject("apiToken es requerido", "NO_API_TOKEN");
+            return;
+        }
+
+        runOnMainThread(() -> {
+            try {
+                if (tapToPayManager == null) {
+                    // Crear instancia vía reflexión (no referencia directa a TapToPayManager)
+                    TapToPayBridge mgr = (TapToPayBridge) Class
+                        .forName("app.devlas.plugins.sumup.TapToPayManager")
+                        .getDeclaredConstructor()
+                        .newInstance();
+
+                    mgr.setEventCallback(new TapToPayBridge.EventCallback() {
+                        @Override
+                        public void onEvent(String eventName, Map<String, Object> data) {
+                            JSObject eventData = new JSObject();
+                            eventData.put("event", eventName);
+                            for (Map.Entry<String, Object> entry : data.entrySet()) {
+                                eventData.put(entry.getKey(), entry.getValue());
+                            }
+                            notifyListeners("tapToPayEvent", eventData);
+                        }
+
+                        @Override
+                        public void onPaymentSuccess(Map<String, Object> data) {
+                            PluginCall tapCall = (tapPaymentCallbackId != null) ? bridge.getSavedCall(tapPaymentCallbackId) : null;
+                            tapPaymentCallbackId = null;
+                            if (tapCall == null) return;
+                            JSObject r = new JSObject();
+                            for (Map.Entry<String, Object> entry : data.entrySet()) {
+                                r.put(entry.getKey(), entry.getValue());
+                            }
+                            tapCall.resolve(r);
+                        }
+
+                        @Override
+                        public void onPaymentError(String errorMessage, String errorCode) {
+                            PluginCall tapCall = (tapPaymentCallbackId != null) ? bridge.getSavedCall(tapPaymentCallbackId) : null;
+                            tapPaymentCallbackId = null;
+                            if (tapCall == null) return;
+                            tapCall.reject(errorMessage, errorCode != null ? errorCode : "TAP_PAY_ERROR");
+                        }
+                    });
+                    tapToPayManager = mgr;
+                }
+
+                tapToPayManager.initialize(getContext(), affiliateKey, apiToken, new TapToPayBridge.InitCallback() {
+                    @Override
+                    public void onResult(boolean success, String error) {
+                        if (success) {
+                            call.resolve(ok("Tap to Pay SDK inicializado"));
+                        } else {
+                            call.reject(error != null ? error : "Error al inicializar Tap to Pay", "TAP_INIT_ERROR");
+                        }
+                    }
+                });
+            } catch (Exception e) {
+                call.reject("Error al inicializar Tap to Pay: " + e.getMessage(), "TAP_INIT_ERROR");
+            }
+        });
+    }
+
+    /**
+     * Inicia un pago Tap to Pay (NFC contactless).
+     */
+    @PluginMethod
+    public void tapToPayCheckout(PluginCall call) {
+        if (!isTapToPayAvailable() || tapToPayManager == null) {
+            call.reject(TAP_NOT_AVAILABLE, "TAP_NOT_AVAILABLE");
+            return;
+        }
+        if (!tapToPayManager.isSdkReady()) {
+            call.reject("Tap to Pay no inicializado. Llama a initTapToPay primero.", "NOT_INITIALIZED");
+            return;
+        }
+
+        Double amountDouble = call.getDouble("amount");
+        if (amountDouble == null || amountDouble < 1.0) {
+            call.reject("amount es requerido y mínimo 1.00", "INVALID_AMOUNT");
+            return;
+        }
+
+        String currency     = call.getString("currency", "CLP");
+        String processCard  = call.getString("processCardAs", "DEBIT");
+        Integer installments = call.getInt("installments", 0);
+        String desc          = call.getString("description", "");
+        String foreignTxId   = call.getString("foreignTransactionId", "");
+
+        bridge.saveCall(call);
+        tapPaymentCallbackId = call.getCallbackId();
+
+        long amountLong = amountDouble.longValue();
+
+        runOnMainThread(() -> {
+            tapToPayManager.startPayment(
+                amountLong,
+                currency != null ? currency : "CLP",
+                processCard != null ? processCard : "DEBIT",
+                installments != null ? installments : 0,
+                desc != null ? desc : "",
+                foreignTxId != null ? foreignTxId : ""
+            );
+        });
+    }
+
+    /**
+     * Verifica si el SDK Tap to Pay está listo.
+     */
+    @PluginMethod
+    public void isTapToPayReady(PluginCall call) {
+        JSObject r = new JSObject();
+        boolean ready = tapToPayManager != null && tapToPayManager.isSdkReady();
+        r.put("ready", ready);
+        call.resolve(r);
+    }
+
+    /**
+     * Libera recursos del SDK Tap to Pay.
+     */
+    @PluginMethod
+    public void teardownTapToPay(PluginCall call) {
+        if (tapToPayManager == null) {
+            call.resolve(ok("Tap to Pay no estaba inicializado"));
+            return;
+        }
+        runOnMainThread(() -> {
+            try {
+                tapToPayManager.teardown();
+                tapToPayManager = null;
+                call.resolve(ok("Tap to Pay SDK liberado"));
+            } catch (Exception e) {
+                call.reject("Error al liberar Tap to Pay: " + e.getMessage(), "TAP_TEARDOWN_ERROR");
             }
         });
     }
