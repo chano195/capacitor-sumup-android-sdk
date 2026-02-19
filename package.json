@@ -33,12 +33,12 @@
   "author": "chano195 <ti@devlas.cl> (https://devlas.cl)",
   "repository": {
     "type": "git",
-    "url": "https://github.com/chano195/capacitor-sumup.git"
+    "url": "https://github.com/chano195/capacitor-sumup-android-sdk.git"
   },
   "bugs": {
-    "url": "https://github.com/chano195/capacitor-sumup/issues"
+    "url": "https://github.com/chano195/capacitor-sumup-android-sdk/issues"
   },
-  "homepage": "https://github.com/chano195/capacitor-sumup#readme",
+  "homepage": "https://github.com/chano195/capacitor-sumup-android-sdk#readme",
   "keywords": [
     "capacitor",
     "capacitor-plugin",

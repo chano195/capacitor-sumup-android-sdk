@@ -14,7 +14,7 @@
 
 ```bash
 # Clonar
-git clone https://github.com/chano195/capacitor-sumup.git
+git clone https://github.com/chano195/capacitor-sumup-android-sdk.git
 cd capacitor-sumup
 
 # Instalar dependencias
@@ -73,7 +73,7 @@ npm pack --dry-run
 
 ## Reportar bugs
 
-Abre un [issue en GitHub](https://github.com/chano195/capacitor-sumup/issues) con:
+Abre un [issue en GitHub](https://github.com/chano195/capacitor-sumup-android-sdk/issues) con:
 
 - Descripción del problema
 - Pasos para reproducir

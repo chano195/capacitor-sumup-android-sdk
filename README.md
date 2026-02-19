@@ -208,7 +208,7 @@ libremente, incluso en proyectos comerciales. Solo te pedimos una cosa:
 
 Formas válidas de dar crédito:
 
-- Mención en el README de tu proyecto: _"Usa [capacitor-sumup](https://github.com/chano195/capacitor-sumup) por DEVLAS SPA"_
+- Mención en el README de tu proyecto: _"Usa [capacitor-sumup](https://github.com/chano195/capacitor-sumup-android-sdk) por DEVLAS SPA"_
 - Mención en la sección "Acerca de" o "Créditos" de tu aplicación
 - Mantener la nota de copyright en el archivo LICENSE (esto es **obligatorio** por la licencia MIT)
 
